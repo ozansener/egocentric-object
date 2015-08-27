@@ -3,7 +3,7 @@ import numpy as np
 import itertools
 import os
 
-from gen_data.system_fonts import FONTS
+from system_fonts import FONTS
 # Declare font files and encodings
 
 class SamplerError(Exception):
@@ -33,6 +33,8 @@ class ArtificialMnist:
                                num_digits,
                                num_font_size,
                                num_top_pos]
+
+        print FONTS
         print("Sampling Space Dimension is",
               reduce(lambda x, y: x*y, self.sampling_space, 1))
 
@@ -40,7 +42,7 @@ class ArtificialMnist:
     def draw_digit(font, rotation, digit_id, font_size, top_left):
         text = str(digit_id)
         # Load font using mapped encoding
-        font = ImageFont.truetype(font, font_size)
+        font = ImageFont.truetype('/home/ozan/.fonts/'+font, font_size)
 
         # Now draw the glyph
         img = Image.new('L', (28, 28), 'black')

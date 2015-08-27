@@ -1,4 +1,3 @@
-
 require 'torch'
 require 'nn'
 require 'nnx'
@@ -39,7 +38,7 @@ parameters,gradParameters = model:getParameters()
 model:add(nn.LogSoftMax())
 criterion = nn.ClassNLLCriterion()
 
-use_full = false
+use_full = true
 if use_full then
    nbTrainingPatches = 60000
    nbTestingPatches = 10000
@@ -49,7 +48,7 @@ else
    print('<warning> only using 2000 samples to train quickly (modify use_fil to use 60000 samples)')
 end
 
-trainData = mnist.loadTrainSet(nbTrainingPatches, geometry)
+trainData = mnist.loadArtificialTrainSet(nbTrainingPatches, geometry)
 trainData:normalizeGlobal(mean, std)
 
 testData = mnist.loadTestSet(nbTestingPatches, geometry)
@@ -64,8 +63,8 @@ print(t)
 confusion = optim.ConfusionMatrix(classes)
 
 -- log results to files
-trainLogger = optim.Logger(paths.concat("logs", 'train.log'))
-testLogger = optim.Logger(paths.concat("logs", 'test.log'))
+trainLogger = optim.Logger(paths.concat("logssr", 'trainsr.log'))
+testLogger = optim.Logger(paths.concat("logssr", 'testsr.log'))
 
 
 -- training function
@@ -149,7 +148,7 @@ function train(dataset)
    confusion:zero()
 
    -- save/log current net
-   local filename = paths.concat("logs", 'mnist.net')
+   local filename = paths.concat("logssr", 'mnistsr.net')
    os.execute('mkdir -p ' .. sys.dirname(filename))
    if paths.filep(filename) then
       os.execute('mv ' .. filename .. ' ' .. filename .. '.old')
