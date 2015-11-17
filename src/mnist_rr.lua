@@ -6,7 +6,7 @@ require 'image'
 require 'dataset-mnist' --This is a file which simply donwloads the data TODO: modify it for artificial one
 require 'pl'
 require 'paths'
-
+require 'cunn'
 torch.manualSeed(1234)
 
 torch.setnumthreads(4)
@@ -32,6 +32,9 @@ model:add(nn.Reshape(64*2*2))
 model:add(nn.Linear(64*2*2, 200))
 model:add(nn.Tanh())
 model:add(nn.Linear(200, #classes))
+
+
+
 print(tostring(model))
 
 parameters,gradParameters = model:getParameters()
@@ -48,16 +51,19 @@ else
    print('<warning> only using 2000 samples to train quickly (modify use_fil to use 60000 samples)')
 end
 
+
+
 trainData = mnist.loadTrainSet(nbTrainingPatches, geometry)
 trainData:normalizeGlobal(mean, std)
+
 
 testData = mnist.loadTestSet(nbTestingPatches, geometry)
 testData:normalizeGlobal(mean, std)
 
-_,t = trainData[1][2]:clone():max(1)
-print(t)
-t:squeeze()
-print(t)
+--_,t = trainData[1][2]:clone():max(1)
+--print(t)
+--t:squeeze()
+--print(t)
 
 -- this matrix records the current confusion across classes
 confusion = optim.ConfusionMatrix(classes)
@@ -206,20 +212,33 @@ function test(dataset)
    confusion:zero()
 end
 
+--testData = testData:cuda()
+trainData.data = trainData.data:cuda()
 
+model = model:cuda()
+criterion = criterion:cuda()
 -- and train!
 --
-while true do
+
+
+trainer = nn.StochasticGradient(model, criterion)
+trainer.learningRate = 0.05
+trainer.maxIteration = 5
+
+trainer:train(trainData)
+
+
+--while true do
    -- train/test
-   train(trainData)
-   test(testData)
+--   train(trainData)
+--   test(testData)
 
    -- plot errors
-   if opt.plot then
-      trainLogger:style{['% mean class accuracy (train set)'] = '-'}
-      testLogger:style{['% mean class accuracy (test set)'] = '-'}
-      trainLogger:plot()
-      testLogger:plot()
-   end
-end
+--   if opt.plot then
+--      trainLogger:style{['% mean class accuracy (train set)'] = '-'}
+--      testLogger:style{['% mean class accuracy (test set)'] = '-'}
+--      trainLogger:plot()
+--      testLogger:plot()
+--   end
+--end
 

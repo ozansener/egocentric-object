@@ -4,8 +4,8 @@ require 'paths'
 mnist = {}
 
 mnist.path_remote = 'https://s3.amazonaws.com/torch7/data/mnist.t7.tgz'
-mnist.path_dataset = '../data/mnist.t7'
-mnist.path_artificial_dataset = '../data'
+mnist.path_dataset = '/capri17/egocentric-object/data/mnist.t7'
+mnist.path_artificial_dataset = '/capri17/egocentric-object/data'
 mnist.path_trainset = paths.concat(mnist.path_dataset, 'train_32x32.t7')
 mnist.path_testset = paths.concat(mnist.path_dataset, 'test_32x32.t7')
 mnist.path_artificial_trainset = paths.concat(mnist.path_artificial_dataset, 'artificial_mnist_train.t7')
@@ -15,7 +15,7 @@ function mnist.download()
    if not paths.filep(mnist.path_trainset) or not paths.filep(mnist.path_testset) then
       local remote = mnist.path_remote
       local tar = paths.basename(remote)
-      os.execute('wget ' .. remote .. '; ' .. 'tar xvf ' .. tar .. '; rm ' .. tar)
+      os.execute('cur_dir=${PWD};cd '.. mnist.path_dataset ..';wget ' .. remote .. '; ' .. 'tar xvf ' .. tar .. '; rm ' .. tar .. ';mv mnist.t7/* .;rm -r mnist.t7;cd $cur_dir')
    end
 end
 
@@ -86,7 +86,7 @@ function mnist.loadDataset(fileName, maxLoad)
 			     local class = self.labels[index]
 			     local label = labelvector:zero()
 			     label[class] = 1
-			     local example = {input, label}
+			     local example = {input, class}
                                        return example
    end})
 
