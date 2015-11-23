@@ -42,14 +42,14 @@ class ArtificialMnist:
     def draw_digit(font, rotation, digit_id, font_size, top_left):
         text = str(digit_id)
         # Load font using mapped encoding
-        font = ImageFont.truetype('/home/ozan/.fonts/'+font, font_size)
+        font = ImageFont.truetype('/capri17/egocentric-object/FONTS/'+font, font_size)
 
         # Now draw the glyph
         img = Image.new('L', (28, 28), 'black')
         draw = ImageDraw.Draw(img)
         draw.text(top_left, text=text, font=font, fill=255)
         rotated_image = img.rotate(rotation, expand=1)
-        return rotated_image.resize((32, 32))
+        return rotated_image.resize((28, 28))
 
     def get_n_random_samples(self, num_samples, directory):
         if not os.path.exists(directory):
