@@ -1,4 +1,5 @@
 import numpy as np
+import mnist_base as m_b
 import tensorflow as tf
 
 class BasicTransduction(object):
@@ -16,6 +17,12 @@ class BasicTransduction(object):
         self.target_matrix = tf.placeholder("float", shape=(None, target_dim))
         self.source_matrix = tf.placeholder("float", shape=(None, source_dim))
         self.w = tf.Variable(tf.diag(tf.constant(1, shape=[source_dim])))
+
+        # We will define the model to further use
+        self.im_ph, self.l_ph, self.kp_ph = m_b.placeholder_inputs()
+        self.softmax_out = m_b.inference(self.im_ph, self.kp_ph)
+        self.lss = m_b.loss(self.l_ph, self.softmax_out)
+        self.accuracy = m_b.acc(self.l_ph, self.softmax_out)
 
     def featurize_source_and_target(self):
         raise NotImplementedError()
@@ -45,5 +52,15 @@ class BasicTransduction(object):
                 self.learn_metric()
 
     def restore_the_model(self, file_name):
-        saver = tf.train.Saver()
+        saver = tf.train.Saver({
+            "conv1/weights": "conv1/weights",
+            "conv1/biases": "conv1/biases",
+            "conv2/weights": "conv2/weights",
+            "conv2/biases": "conv2/biases",
+            "fully_connected/weights": "fully_connected/weights",
+            "fully_connected/biases": "fully_connected/biases",
+            "softmax/weights": "softmax/weights",
+            "softmax/biases": "softmax/biases"
+        }
+        )
         saver.restore(self.sess, file_name)
