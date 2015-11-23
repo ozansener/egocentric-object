@@ -44,35 +44,39 @@ def max_pool_2x2(x):
 
 
 def inference(input_image, keep_prob):
-    with tf.name_scope('conv1') as scope:
-        weights = tf.Variable(tf.truncated_normal([5,5,1,32], stddev = 0.1), name='weights')
-        biases = tf.Variable(tf.constant(0.1, shape=[32]), name='biases')
+    with tf.variable_scope('conv1') as scope:
+        weights = tf.get_variable("weights", shape=[5,5,1,32],initializer=tf.truncated_normal_initializer(stddev = 0.1))        
+        biases = tf.get_variable('biases', shape=[32],initializer=tf.constant_initializer(0.1))
  
         x_image = tf.reshape(input_image, [-1,28,28,1])        
         hidden_c1 = tf.nn.relu(conv2d(x_image, weights)+biases)
         hidden_pool1 = max_pool_2x2(hidden_c1)
+        scope.reuse_variables()
 
-    with tf.name_scope('conv2') as scope:
-        weights = tf.Variable(tf.truncated_normal([5,5,32,64], stddev = 0.1), name='weights')
-        biases = tf.Variable(tf.constant(0.1, shape=[64]), name='biases')
-        
+    with tf.variable_scope('conv2') as scope:
+        weights = tf.get_variable("weights", shape=[5,5,32,64],initializer=tf.truncated_normal_initializer(stddev = 0.1))        
+        biases = tf.get_variable('biases', shape=[64],initializer=tf.constant_initializer(0.1))
+       
         hidden_c2 = tf.nn.relu(conv2d(hidden_pool1, weights)+biases)
         hidden_pool2 = max_pool_2x2(hidden_c2)
+        scope.reuse_variables()
 
-    with tf.name_scope('fully_connected') as scope:
-        weights = tf.Variable(tf.truncated_normal([7*7*64, 1024], stddev = 0.1), name='weights')
-        biases = tf.Variable(tf.constant(0.1, shape=[1024]), name='biases')
-        
+    with tf.variable_scope('fully_connected') as scope:
+        weights = tf.get_variable("weights", shape=[7*7*64, 1024],initializer=tf.truncated_normal_initializer(stddev = 0.1))        
+        biases = tf.get_variable('biases', shape=[1024],initializer=tf.constant_initializer(0.1))
+       
         hidden_pool2_flat = tf.reshape(hidden_pool2, [-1, 7*7*64])
         hidden_fc1 = tf.nn.relu(tf.matmul(hidden_pool2_flat, weights)+biases)
     
         # Add dropout
         hidden_fc1_drop = tf.nn.dropout(hidden_fc1, keep_prob)
+        scope.reuse_variables()
 
-    with tf.name_scope('softmax') as scope:
-        weights = tf.Variable(tf.truncated_normal([1024,10], stddev = 0.1), name='weights')
-        biases = tf.Variable(tf.constant(0.1, shape=[10]), name='biases')
+    with tf.variable_scope('softmax') as scope:
+        weights = tf.get_variable("weights", shape=[1024, 10],initializer=tf.truncated_normal_initializer(stddev = 0.1))        
+        biases = tf.get_variable('biases', shape=[10],initializer=tf.constant_initializer(0.1))
         y_out = tf.nn.softmax(tf.matmul(hidden_fc1_drop, weights)+biases)
+        scope.reuse_variables()
 
     return y_out
 

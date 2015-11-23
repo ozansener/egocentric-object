@@ -52,15 +52,30 @@ class BasicTransduction(object):
                 self.learn_metric()
 
     def restore_the_model(self, file_name):
+        num_var_in_graph = len(tf.all_variables())
+        with tf.variable_scope('conv1', reuse=True):
+            vc1w = tf.get_variable('weights') 
+            vc1b = tf.get_variable('biases')
+        with tf.variable_scope('conv2', reuse=True):
+            vc2w = tf.get_variable('weights') 
+            vc2b = tf.get_variable('biases')
+        with tf.variable_scope('fully_connected', reuse=True):
+            vfcw = tf.get_variable('weights') 
+            vfcb = tf.get_variable('biases')
+        with tf.variable_scope('softmax', reuse=True):
+            vsw = tf.get_variable('weights') 
+            vsb = tf.get_variable('biases')
+        
+        assert num_var_in_graph == len(tf.all_variables()) # Make sure no new variable is created     
+
         saver = tf.train.Saver({
-            "conv1/weights": tf.get_variable("conv1/weights"),
-            "conv1/biases": tf.get_variable("conv1/biases"),
-            "conv2/weights": tf.get_variable("conv2/weights"),
-            "conv2/biases": tf.get_variable("conv2/biases"),
-            "fully_connected/weights": tf.get_variable("fully_connected/weights"),
-            "fully_connected/biases": tf.get_variable("fully_connected/biases"),
-            "softmax/weights": tf.get_variable("softmax/weights"),
-            "softmax/biases": tf.get_variable("softmax/biases")
-        }
-        )
+            "conv1/weights":vc1w,
+            "conv1/biases":vc1b,
+            "conv2/weights":vc2w,
+            "conv2/biases":vc2b,
+            "fully_connected/weights":vfcw,
+            "fully_connected/biases":vfcb,
+            "softmax/weights":vsw,
+            "softmax/biases":vsb
+            })
         saver.restore(self.sess, file_name)
