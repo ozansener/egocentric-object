@@ -15,7 +15,7 @@ class BasicTransduction(object):
         assert source_dim == target_dim
         self.target_matrix = tf.placeholder("float", shape=(None, target_dim))
         self.source_matrix = tf.placeholder("float", shape=(None, source_dim))
-        self.w = tf.Variable(tf.diag(tf.constant(1, [source_dim])))
+        self.w = tf.Variable(tf.diag(tf.constant(1, shape=[source_dim])))
 
     def featurize_source_and_target(self):
         raise NotImplementedError()
