@@ -53,14 +53,14 @@ class BasicTransduction(object):
 
     def restore_the_model(self, file_name):
         saver = tf.train.Saver({
-            "conv1/weights": "conv1/weights",
-            "conv1/biases": "conv1/biases",
-            "conv2/weights": "conv2/weights",
-            "conv2/biases": "conv2/biases",
-            "fully_connected/weights": "fully_connected/weights",
-            "fully_connected/biases": "fully_connected/biases",
-            "softmax/weights": "softmax/weights",
-            "softmax/biases": "softmax/biases"
+            "conv1/weights": tf.get_variable("conv1/weights"),
+            "conv1/biases": tf.get_variable("conv1/biases"),
+            "conv2/weights": tf.get_variable("conv2/weights"),
+            "conv2/biases": tf.get_variable("conv2/biases"),
+            "fully_connected/weights": tf.get_variable("fully_connected/weights"),
+            "fully_connected/biases": tf.get_variable("fully_connected/biases"),
+            "softmax/weights": tf.get_variable("softmax/weights"),
+            "softmax/biases": tf.get_variable("softmax/biases")
         }
         )
         saver.restore(self.sess, file_name)
