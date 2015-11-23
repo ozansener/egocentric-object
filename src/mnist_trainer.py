@@ -21,7 +21,7 @@ def train(source, target):
 
     with tf.Graph().as_default():
         im_ph, l_ph, kp_ph = m_b.placeholder_inputs()
-        softmax_out = m_b.inference(im_ph, kp_ph)
+        fc_out, softmax_out = m_b.inference(im_ph, kp_ph)
         lss = m_b.loss(l_ph, softmax_out)
  
         train_step = tf.train.AdamOptimizer(1e-4).minimize(lss)    

@@ -78,7 +78,7 @@ def inference(input_image, keep_prob):
         y_out = tf.nn.softmax(tf.matmul(hidden_fc1_drop, weights)+biases)
         scope.reuse_variables()
 
-    return y_out
+    return hidden_fc1, y_out
 
 def loss(y_gt, y_out):
     return -tf.reduce_sum(y_gt*tf.log(y_out))

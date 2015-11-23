@@ -1,9 +1,10 @@
 import numpy as np
 import mnist_base as m_b
 import tensorflow as tf
+import input_data
 
 class BasicTransduction(object):
-    def __init__(self):
+    def __init__(self, source_folder, target_folder):
         self.target = None
         self.source = None
         self.source_labels = None
@@ -20,12 +21,19 @@ class BasicTransduction(object):
 
         # We will define the model to further use
         self.im_ph, self.l_ph, self.kp_ph = m_b.placeholder_inputs()
-        self.softmax_out = m_b.inference(self.im_ph, self.kp_ph)
+        self.fc_out, self.softmax_out = m_b.inference(self.im_ph, self.kp_ph)
         self.lss = m_b.loss(self.l_ph, self.softmax_out)
         self.accuracy = m_b.acc(self.l_ph, self.softmax_out)
 
+        # Read the data
+        self.mnist_source = input_data.read_data_sets(source_folder, one_hot=True)
+        self.mnist_target = input_data.read_data_sets(target_folder, one_hot=True)
+
     def featurize_source_and_target(self):
-        raise NotImplementedError()
+        self.source_features = self.fc_out()
+        self.target_features = self.fc_out()
+        self.sess.run(self.source_features, feed_dict={self.im_ph:self.mnist_source, self.kp_ph:1.0})
+        self.sess.run(self.target_features, feed_dict={self.im_ph:self.mnist_target, self.kp_ph:1.0})
 
     def label_target(self):
         # Compute the distance matrix
