@@ -9,9 +9,7 @@ def transduce(source, target):
     bt = BasicTransduction(source, target)
     bt.restore_the_model("s_MNIST_a_t_MNIST_r_model-19000")
     bt.featurize_source_and_target()
-    bt.fill_batch()
-    bt.label_target()
-    bt.learn_metric()
+    bt.train_loop()
 
 if __name__ == '__main__':
     transduce()
