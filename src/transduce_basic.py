@@ -52,7 +52,9 @@ class BasicTransduction(object):
         self.target_test_features = np.zeros((self.mnist_target.test.num_examples,1024))
         #tf.placeholder("float", shape=(self.mnist_source.train.num_examples,1024))
         self.loss_minimize = self.get_lost_fnc()
-        self.train_step = tf.train.AdagradOptimizer(0.005).minimize(self.loss_minimize, var_list=[self.w])
+        print 'Initial Variable List:'
+        print [tt.name for tt in tf.trainable_variables()]
+        self.train_step = tf.train.AdagradOptimizer(0.005).minimize(self.loss_minimize) #, var_list=[self.w])
 
 	#diff_norm = tf.mul(self.diff_diff, tf.transpose(tf.matmul(self.w, tf.transpose(self.diff_diff)))),tf.ones([1024])
         #same_norm = tf.mul(self.diff_diff, tf.transpose(tf.matmul(self.w, tf.transpose(self.diff_diff)))),tf.ones([1024])
@@ -228,8 +230,9 @@ class BasicTransduction(object):
         self.set_labeling_eval_function()
         
         asy, nrm = self.asym_eval() 
-         
+        print 'Variables to learn are:' 
         print [tt.name for tt in tf.trainable_variables()]
+        writer = tf.train.SummaryWriter("/tmp/dt_logs", self.sess.graph_def)
         for epoch_id in range(self.NUM_EPOCHS):
             for batch_begin in range(250):
                 # fill the place holder with the batch
