@@ -23,6 +23,8 @@ class BasicTransduction(object):
         self.target_labels = None  # computed labels of the target points
         self.target_labels_gt = None  # GT labels of the target, one-hot
 
+        self.triple_images = tf.placeholder("float", shape=(None, 28*28*3))
+
         self.target_matrix = tf.placeholder("float", shape=(None, self.target_dim))  # features of the current batch
         self.source_matrix = tf.placeholder("float", shape=(None, self.source_dim))  # features of the full source
         self.source_matrix_batch = tf.placeholder("float", shape=(None, self.source_dim))  # features of the batch
@@ -52,9 +54,13 @@ class BasicTransduction(object):
         self.target_test_features = np.zeros((self.mnist_target.test.num_examples,1024))
         #tf.placeholder("float", shape=(self.mnist_source.train.num_examples,1024))
         self.loss_minimize = self.get_lost_fnc()
+        self.old_loss_minimize = self.get_old_lost_fnc()
         print 'Initial Variable List:'
         print [tt.name for tt in tf.trainable_variables()]
-        self.train_step = tf.train.AdagradOptimizer(0.005).minimize(self.loss_minimize) #, var_list=[self.w])
+
+        # new loss function is
+        self.train_step = tf.train.AdagradOptimizer(0.005).minimize(self.loss_minimize) #, var_list=[self.w]) # no feaeture learning
+        #self.train_step = tf.train.AdagradOptimizer(0.005).minimize(self.loss_minimize) #, var_list=[self.w])
 
 	#diff_norm = tf.mul(self.diff_diff, tf.transpose(tf.matmul(self.w, tf.transpose(self.diff_diff)))),tf.ones([1024])
         #same_norm = tf.mul(self.diff_diff, tf.transpose(tf.matmul(self.w, tf.transpose(self.diff_diff)))),tf.ones([1024])
@@ -79,19 +85,22 @@ class BasicTransduction(object):
         """
         # we can not fit the entire mnist into GPU, so will do 1000 images per clock
         for b_id in range(self.mnist_source.train.num_examples/1000):
-            im_b, lb = self.mnist_source.train.next_batch(1000) 
+            im_b = self.mnist_source.train.images[b_id*1000:b_id*1000+1000] # next_batch(1000) 
+            lb = self.mnist_source.train.labels[b_id*1000:b_id*1000+1000] # next_batch(1000) 
             source_feat = self.fc_out
             feats = self.sess.run(source_feat, feed_dict={self.im_ph:im_b, self.kp_ph:1.0})
             self.source_features[b_id*1000:b_id*1000+1000, :] = feats
 
         for b_id in range(self.mnist_target.train.num_examples/1000):
-            im_b, lb = self.mnist_target.train.next_batch(1000) 
+            im_b = self.mnist_target.train.images[b_id*1000:b_id*1000+1000] # next_batch(1000) 
+            lb = self.mnist_target.train.labels[b_id*1000:b_id*1000+1000] # next_batch(1000) 
             source_feat = self.fc_out
             feats = self.sess.run(source_feat, feed_dict={self.im_ph:im_b, self.kp_ph:1.0})
             self.target_features[b_id*1000:b_id*1000+1000, :] = feats
 
         for b_id in range(self.mnist_target.test.num_examples/1000):
-            im_b, lb = self.mnist_target.test.next_batch(1000) 
+            im_b = self.mnist_target.test.images[b_id*1000:b_id*1000+1000]# next_batch(1000) 
+            lb = self.mnist_target.test.labels[b_id*1000:b_id*1000+1000]# next_batch(1000) 
             test_feat = self.fc_out
             feats = self.sess.run(test_feat, feed_dict={self.im_ph:im_b, self.kp_ph:1.0})
             self.target_test_features[b_id*1000:b_id*1000+1000, :] = feats
@@ -147,25 +156,59 @@ class BasicTransduction(object):
         for target_id in range(self.BATCH_SIZE):
             self.target_labels[target_id] = self.source_labels[min_distances_eval[target_id]]
 
-    def get_lost_fnc(self):
+
+
+    def get_old_lost_fnc(self):
         self.lss = tf.add( tf.add( tf.neg(tf.reduce_sum(tf.mul(tf.matmul(self.diff_label,self.w), self.diff_label), 1)),
                                    tf.reduce_sum(tf.mul(tf.matmul(self.same_label,self.w), self.same_label), 1)),
                            self.ALPHA)
-        #                     tf.add(
-        #                     tf.add( tf.neg(tf.mul(tf.matmul(self.diff_label,self.w), self.diff_label)),
-        #                             tf.mul(tf.matmul(self.same_label,self.w), self.same_label) ),
-        #                     self.ALPHA)
-
         self.loss = 600000.0*tf.reduce_sum(tf.nn.relu(self.lss)) #+ tf.reduce_sum(tf.pow(self.w, 2))
+       
         return self.loss
+
+
+
+    def get_lost_fnc(self):
+        y_res = self.triple_loss() 
+        feat_loss = self.feature_loss_fnc(y_res)
+        self.loss = 600000.0*feat_loss 
+        return self.loss
+
+    def triple_loss(self):
+        # Input images: [Anchor;Positive;Negative]
+        # input_image 	= tf.reshape(self.triple_images, [-1,28*28*3,1])        
+
+        anc_image = tf.reshape(self.triple_images[:,0:28*28], [-1, 28,28,1])
+        pos_image = tf.reshape(self.triple_images[:,28*28:2*28*28], [-1, 28,28,1])
+        neg_image = tf.reshape(self.triple_images[:,2*28*28:3*28*28], [-1, 28,28,1])
+ 
+        anc_f,y1 = m_b.inference_reuse(anc_image, self.kp_ph)
+        pos_f,y1 = m_b.inference_reuse(pos_image, self.kp_ph)
+        neg_f,y1 = m_b.inference_reuse(neg_image, self.kp_ph)
+
+
+
+        triple_l = tf.add( tf.add( tf.neg(tf.reduce_sum(tf.mul(tf.matmul(neg_f-anc_f,self.w), neg_f-anc_f), 1)),
+                           tf.reduce_sum(tf.mul(tf.matmul(pos_f-anc_f,self.w), pos_f-anc_f), 1)),
+                           self.ALPHA)
+
+        return tf.nn.relu(triple_l)
+
+    def feature_loss_fnc(self, y_res):
+        # This is same loss defined over input images to learn the features
+        # input image is defined as [Anchor;Positive;Negative]
+        return tf.reduce_sum(y_res)
 
     def learn_metric(self):
         #print self.cur_scores.shape
         #for target_id in range(self.BATCH_SIZE):
         #    print self.target_labels[target_id+self.cur_batch*self.BATCH_SIZE], np.nonzero(self.target_labels_gt[target_id+self.cur_batch*self.BATCH_SIZE])[0][0], self.cur_scores[target_id]
 
+        id_c = np.array(range(self.BATCH_SIZE)).reshape((self.BATCH_SIZE,1))
+        
         min_s_l = []
         min_d_l = []
+        trip_list = []
         # we start with computing same and diff label matrices
         for src_pt in range(self.BATCH_SIZE):
             source_gt_label = self.source_labels[self.cur_batch*self.BATCH_SIZE+src_pt]
@@ -181,14 +224,28 @@ class BasicTransduction(object):
             min_d_v, min_s_v = self.sess.run([self.min_d, self.min_s], feed_dict={self.diff_diff:diff_diff_v, self.same_diff:same_diff_v})
             min_s_l.append(same_diff_v[min_s_v])
             min_d_l.append(diff_diff_v[min_d_v])
+         
+            id_s = id_c[target_same, :]
+            id_d = id_c[target_diff, :]
 
-        self.sess.run(self.train_step,
-                      feed_dict={self.diff_label:np.array(min_d_l), self.same_label:np.array(min_s_l)})
+            # Here only push IDs instead
+            anchor_im =  self.mnist_source.train.images[self.cur_batch*self.BATCH_SIZE+src_pt].reshape((1, 28*28))       
+            pos_im = self.mnist_target.train.images[self.cur_batch*self.BATCH_SIZE+id_s[min_s_v]].reshape((1, 28*28))
+            neg_im = self.mnist_target.train.images[self.cur_batch*self.BATCH_SIZE+id_d[min_d_v]].reshape((1, 28*28))
+            dat = np.concatenate((anchor_im, pos_im, neg_im), axis=1)
+            trip_list.append(dat)
+        
+     
+        # send new images to the train_step
+        self.sess.run(self.train_step, feed_dict={self.triple_images:np.vstack(trip_list)})
+        # self.sess.run(self.train_step,
+        #              feed_dict={self.diff_label:np.array(min_d_l), self.same_label:np.array(min_s_l)})
+       
 
         W_old = self.sess.run(self.w, feed_dict={})
         W_new = lalg.project_to_psd(W_old)
         self.sess.run(self.ass_a, feed_dict={self.w_half: W_new})
-        l_v2 = self.sess.run(self.loss_minimize, feed_dict={self.diff_label:np.array(min_d_l), self.same_label:np.array(min_s_l)})
+        l_v2 = self.sess.run(self.old_loss_minimize, feed_dict={self.diff_label:np.array(min_d_l), self.same_label:np.array(min_s_l)})
         return l_v2
 
     def fill_batch(self):
@@ -247,6 +304,8 @@ class BasicTransduction(object):
                     self.logger.add_log("step {}, test accuracy before learning {}".format(batch_begin+250*epoch_id, acc))
                 cur_l = self.learn_metric()
                 if batch_begin % 50 == 0:
+                    # Here we recompute features
+                    self.featurize_source_and_target()
                     acc = self.evaluate_current()
                     self.logger.add_log("step {}, test accuracy after learning {}".format(batch_begin+250*epoch_id, acc))
                     self.label_target(True, batch_begin)

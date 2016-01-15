@@ -80,6 +80,44 @@ def inference(input_image, keep_prob):
 
     return hidden_fc1, y_out
 
+
+def inference_reuse(input_image, keep_prob):
+    with tf.variable_scope('conv1', reuse=True) as scope:
+        weights = tf.get_variable("weights", shape=[5,5,1,32],initializer=tf.truncated_normal_initializer(stddev = 0.1))        
+        biases = tf.get_variable('biases', shape=[32],initializer=tf.constant_initializer(0.1))
+ 
+        x_image = tf.reshape(input_image, [-1,28,28,1])        
+        hidden_c1 = tf.nn.relu(conv2d(x_image, weights)+biases)
+        hidden_pool1 = max_pool_2x2(hidden_c1)
+        scope.reuse_variables()
+
+    with tf.variable_scope('conv2', reuse=True) as scope:
+        weights = tf.get_variable("weights", shape=[5,5,32,64],initializer=tf.truncated_normal_initializer(stddev = 0.1))        
+        biases = tf.get_variable('biases', shape=[64],initializer=tf.constant_initializer(0.1))
+       
+        hidden_c2 = tf.nn.relu(conv2d(hidden_pool1, weights)+biases)
+        hidden_pool2 = max_pool_2x2(hidden_c2)
+        scope.reuse_variables()
+
+    with tf.variable_scope('fully_connected', reuse=True) as scope:
+        weights = tf.get_variable("weights", shape=[7*7*64, 1024],initializer=tf.truncated_normal_initializer(stddev = 0.1))        
+        biases = tf.get_variable('biases', shape=[1024],initializer=tf.constant_initializer(0.1))
+       
+        hidden_pool2_flat = tf.reshape(hidden_pool2, [-1, 7*7*64])
+        hidden_fc1 = tf.nn.relu(tf.matmul(hidden_pool2_flat, weights)+biases)
+    
+        # Add dropout
+        hidden_fc1_drop = tf.nn.dropout(hidden_fc1, keep_prob)
+        scope.reuse_variables()
+
+    with tf.variable_scope('softmax', reuse=True) as scope:
+        weights = tf.get_variable("weights", shape=[1024, 10],initializer=tf.truncated_normal_initializer(stddev = 0.1))        
+        biases = tf.get_variable('biases', shape=[10],initializer=tf.constant_initializer(0.1))
+        y_out = tf.nn.softmax(tf.matmul(hidden_fc1_drop, weights)+biases)
+        scope.reuse_variables()
+
+    return hidden_fc1, y_out
+
 def loss(y_gt, y_out):
     return -tf.reduce_sum(y_gt*tf.log(y_out))
 
