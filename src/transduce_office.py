@@ -1,7 +1,7 @@
 import numpy as np
 import alexnet_base as m_b # we will make this thing alexnet
 import tensorflow as tf
-import input_data # this will also change
+import office_data # this will also change
 import util_algebra as lalg
 import util_logging as ul
 
@@ -46,11 +46,11 @@ class BasicTransduction(object):
         self.fc_out, self.softmax_out = m_b.inference(self.im_ph, self.kp_ph)
 
         # Read the data
-        self.office_source = office_reader.read_data_set(source_folder)
-        self.office_domain = office_reader.read_data_set(target_folder)
+        self.office_source = office_data.read_data_sets(source_folder, one_hot=True)
+        self.office_target = office_data.read_data_sets(target_folder, one_hot=True)
 
-        self.source_features = np.zeros((self.office_source.num_examples,1000))
-        self.target_features = np.zeros((self.office_target.num_examples,1000))
+        self.source_features = np.zeros((self.office_source.train.num_examples,1000))
+        self.target_features = np.zeros((self.office_target.train.num_examples,1000))
         #tf.placeholder("float", shape=(self.mnist_source.train.num_examples,1024))
         self.loss_minimize = self.get_lost_fnc()
         self.old_loss_minimize = self.get_old_lost_fnc()
@@ -59,7 +59,7 @@ class BasicTransduction(object):
 
         # new loss function is
         # TODO: Make it only optimize for fully connecccted
-        self.train_step = tf.train.AdagradOptimizer(0.005).minimize(self.loss_minimize) #, var_list=[self.w]) # no feaeture learning
+        self.train_step = tf.train.AdagradOptimizer(0.005).minimize(self.loss_minimize, var_list=[self.w]) #, var_list=[self.w]) # no feaeture learning
         #self.train_step = tf.train.AdagradOptimizer(0.005).minimize(self.loss_minimize) #, var_list=[self.w])
  
         diff_norm = tf.reduce_sum(tf.mul(self.diff_diff, tf.transpose(tf.matmul(self.w, tf.transpose(self.diff_diff)))),
@@ -79,33 +79,39 @@ class BasicTransduction(object):
         """
         This function featurize the entire dataset at the beginning of the computation
         :return:
-        """
-        process_size = 100
+        """ 
+        process_size = 100.0
         # we can not fit the entire mnist into GPU, so will do 1000 images per clock
-        for b_id in range(self.office_source.num_examples/process_size):
-            im_b = self.office_source.images[b_id*process_size:b_id*process_size+process_size] # next_batch(1000) 
-            lb = self.office_source.labels[b_id*process_size:b_id*process_size+process_size] # next_batch(1000) 
+        for b_id in range(np.ceil(self.office_source.train.num_examples/process_size).astype(np.int32)):
+            b_s = b_id*100
+            b_e = min((b_id+1)*process_size, self.office_source.train.num_examples)
+            im_b = self.office_source.train.images[b_s:b_e] # next_batch(1000) 
+            lb = self.office_source.train.labels[b_s:b_e] # next_batch(1000) 
             source_feat = self.fc_out
             feats = self.sess.run(source_feat, feed_dict={self.im_ph:im_b, self.kp_ph:1.0})
-            self.source_features[b_id*process_size:b_id*process_size+process_size, :] = feats
+            self.source_features[b_s:b_e, :] = feats
 
-        for b_id in range(self.office_target.num_examples/process_size):
-            im_b = self.office_target.images[b_id*process_size:b_id*process_size+process_size] # next_batch(1000) 
-            lb = self.office_target.labels[b_id*process_size:b_id*process_size+process_size] # next_batch(1000) 
+        for b_id in range(np.ceil(self.office_target.train.num_examples/process_size).astype(np.int32)):
+            b_s = b_id*100
+            b_e = min((b_id+1)*process_size, self.office_target.train.num_examples)
+            im_b = self.office_target.train.images[b_s:b_e] # next_batch(1000) 
+            lb = self.office_target.train.labels[b_s:b_e] # next_batch(1000) 
             source_feat = self.fc_out
             feats = self.sess.run(source_feat, feed_dict={self.im_ph:im_b, self.kp_ph:1.0})
-            self.target_features[b_id*process_size:b_id*process_size+process_size, :] = feats
+            self.target_features[b_s:b_e, :] = feats
 
-        _source_labels = self.office_source.labels
+        np.save('feat.npy',self.source_features)
+
+        _source_labels = self.office_source.train.labels
         self.target_labels = np.zeros((self.BATCH_SIZE))
-        _target_labels_gt = self.office_target.labels
-        self.source_labels = np.zeros((self.office_source.num_examples))
-        self.target_labels_gt = np.zeros((self.office_source.num_examples))
+        _target_labels_gt = self.office_target.train.labels
+        self.source_labels = np.zeros((self.office_source.train.num_examples))
+        self.target_labels_gt = np.zeros((self.office_target.train.num_examples))
 
-        for target_id in range(self.office_source.num_examples):
+        for target_id in range(self.office_source.train.num_examples):
             self.target_labels_gt[target_id] = np.nonzero(_target_labels_gt[target_id])[0][0]
 
-        for source_id in range(self.office_source.num_examples):
+        for source_id in range(self.office_source.train.num_examples):
             self.source_labels[source_id] = np.nonzero(_source_labels[source_id])[0][0]
 
     def set_labeling_eval_function(self):
@@ -113,10 +119,10 @@ class BasicTransduction(object):
         distances_ij_e = tf.matmul(self.source_matrix, tf.matmul(self.w, tf.transpose(self.target_matrix)))
         distances_ii_e = tf.matmul(tf.mul(self.source_matrix,
                                         tf.transpose(tf.matmul(self.w, tf.transpose(self.source_matrix)))),
-                                 tf.ones([1024, self.office_target.num_examples]))
+                                 tf.ones([self.source_dim, self.office_target.train.num_examples]))
         distances_jj_e = tf.matmul(tf.mul(self.target_matrix,
                                         tf.transpose(tf.matmul(self.w, tf.transpose(self.target_matrix)))),
-                                 tf.ones([1024, self.mnist_source.train.num_examples]))
+                                 tf.ones([self.source_dim, self.office_source.train.num_examples]))
         distances_e = distances_ii_e + tf.transpose(distances_jj_e) - 2*distances_ij_e
         self.min_distances_e = tf.argmin(distances_e, 0)
 
@@ -125,10 +131,10 @@ class BasicTransduction(object):
         distances_ij = tf.matmul(self.source_matrix, tf.matmul(self.w, tf.transpose(self.target_matrix)))
         distances_ii = tf.matmul(tf.mul(self.source_matrix,
                                         tf.transpose(tf.matmul(self.w, tf.transpose(self.source_matrix)))),
-                                 tf.ones([1024, self.BATCH_SIZE]))
+                                 tf.ones([self.source_dim, self.BATCH_SIZE]))
         distances_jj = tf.matmul(tf.mul(self.target_matrix,
                                         tf.transpose(tf.matmul(self.w, tf.transpose(self.target_matrix)))),
-                                 tf.ones([1024, self.mnist_source.train.num_examples]))
+                                 tf.ones([self.source_dim, self.office_source.train.num_examples]))
         distances = distances_ii + tf.transpose(distances_jj) - 2*distances_ij
         self.min_distances = tf.argmin(distances, 0)
         self.conf_scores = tf.reduce_min(distances, reduction_indices=[0])
@@ -136,18 +142,18 @@ class BasicTransduction(object):
     def label_target(self, is_second, batch_begin):
         # TODO: Make it use entire source set
         min_distances_eval, self.cur_scores = self.sess.run([self.min_distances, self.conf_scores], feed_dict=self.cur_data)
-        if batch_begin%50 == 0:
-            self.logger.write_nn(min_distances_eval, self.cur_batch, is_second)
+        #if batch_begin%50 == 0:
+        #    self.logger.write_nn(min_distances_eval, self.cur_batch, is_second)
         for target_id in range(self.BATCH_SIZE):
-            self.target_labels[target_id] = self.source_labels[min_distances_eval[target_id]]
-
+            self.target_labels[target_id] = self.target_labels_gt[self.cur_batch*self.BATCH_SIZE+target_id] # self.source_labels[min_distances_eval[target_id]]
+            # JUST FOR DEBUG PUT IT BACJ
 
 
     def get_old_lost_fnc(self):
         self.lss = tf.add( tf.add( tf.neg(tf.reduce_sum(tf.mul(tf.matmul(self.diff_label,self.w), self.diff_label), 1)),
                                    tf.reduce_sum(tf.mul(tf.matmul(self.same_label,self.w), self.same_label), 1)),
                            self.ALPHA)
-        self.loss = 600000.0*tf.reduce_sum(tf.nn.relu(self.lss)) #+ tf.reduce_sum(tf.pow(self.w, 2))
+        self.loss = tf.reduce_sum(tf.nn.relu(self.lss)) #+ tf.reduce_sum(tf.pow(self.w, 2))
        
         return self.loss
 
@@ -156,7 +162,7 @@ class BasicTransduction(object):
     def get_lost_fnc(self):
         y_res = self.triple_loss() 
         feat_loss = self.feature_loss_fnc(y_res)
-        self.loss = 600000.0*feat_loss 
+        self.loss = feat_loss 
         return self.loss
 
     def triple_loss(self):
@@ -216,9 +222,9 @@ class BasicTransduction(object):
             id_d = id_c[target_diff, :]
 
             # Here only push IDs instead
-            anchor_im =  self.office_source.images[self.cur_batch*self.BATCH_SIZE+src_pt].reshape((1, 227*227*3))       
-            pos_im = self.office_source.images[self.cur_batch*self.BATCH_SIZE+id_s[min_s_v]].reshape((1, 227*227*3))
-            neg_im = self.office_source.images[self.cur_batch*self.BATCH_SIZE+id_d[min_d_v]].reshape((1, 227*227*3))
+            anchor_im =  self.office_source.train.images[self.cur_batch*self.BATCH_SIZE+src_pt].reshape((1, 227*227*3))       
+            pos_im = self.office_target.train.images[self.cur_batch*self.BATCH_SIZE+id_s[min_s_v]].reshape((1, 227*227*3))
+            neg_im = self.office_target.train.images[self.cur_batch*self.BATCH_SIZE+id_d[min_d_v]].reshape((1, 227*227*3))
             dat = np.concatenate((anchor_im, pos_im, neg_im), axis=1)
             trip_list.append(dat)
         
@@ -237,8 +243,14 @@ class BasicTransduction(object):
 
     def fill_batch(self):
         self.cur_batch += 1
-        if (self.cur_batch+1)*self.BATCH_SIZE > self.office_source.num_examples:
+        if (self.cur_batch+1)*self.BATCH_SIZE > self.office_source.train.num_examples:
             self.cur_batch = 0
+        if (self.cur_batch+1)*self.BATCH_SIZE > self.office_target.train.num_examples:
+            self.cur_batch = 0
+   
+        if self.cur_batch == 0:
+            self.office_source.train.shuffle()
+            self.office_target.train.shuffle()
 
         self.cur_data = {
             self.target_matrix: self.target_features[self.cur_batch*self.BATCH_SIZE:(self.cur_batch+1)*self.BATCH_SIZE, :],
@@ -256,12 +268,14 @@ class BasicTransduction(object):
  
     def evaluate_current(self):
         tp = 0.0
-        for bid in range(self.office_target.num_examples/1000):
-            min_distances_eval = self.sess.run(self.min_distances_e, feed_dict={self.source_matrix:self.source_features, self.target_matrix: self.target_features[bid*1000:(bid+1)*1000,:]})
- 	    for idd in range(1000):
-                if self.source_labels[min_distances_eval[idd]] == self.target_labels[1000*bid+idd]:
+        for bid in range(np.ceil(self.office_target.train.num_examples/1000.0).astype(np.int32)):
+            b_s = bid*1000
+            b_e = min((bid+1)*1000, self.office_target.train.num_examples)
+            min_distances_eval = self.sess.run(self.min_distances_e, feed_dict={self.source_matrix:self.source_features, self.target_matrix: self.target_features[b_s:b_e,:]})
+ 	    for idd in range(min(1000, self.office_target.train.num_examples-bid*1000)):
+                if self.source_labels[min_distances_eval[idd]] == self.target_labels_gt[1000*bid+idd]:
                     tp+=1.0
-        return tp/self.mnist_target.test.num_examples
+        return tp/self.office_target.train.num_examples
     
     def asym_eval(self):
         return tf.reduce_sum(tf.abs(tf.transpose(self.w) - self.w)), tf.reduce_sum(tf.pow(self.w, 2))
